@@ -92,10 +92,13 @@ function SingleFileImportCard() {
             const formData = new FormData();
             formData.append("url", url);
             formData.append("file", file);
-            const resp = await fetch("/api/v1/bookmarks/singlefile?ifexists=append", {
-              method: "POST",
-              body: formData,
-            });
+            const resp = await fetch(
+              "/api/v1/bookmarks/singlefile?ifexists=append",
+              {
+                method: "POST",
+                body: formData,
+              },
+            );
             if (!resp.ok) {
               failed.push(file.name);
             }
@@ -115,7 +118,10 @@ function SingleFileImportCard() {
 
       if (failed.length === 0) {
         toast({
-          description: t("settings.import.import_singlefile_success", { count: files.length }),
+          description: t(
+            "settings.import.import_singlefile_success",
+            { count: files.length },
+          ),
           variant: "default",
         });
       } else {
@@ -138,12 +144,16 @@ function SingleFileImportCard() {
   return (
     <ImportCard
       text={t("settings.import.import_singlefile_snapshots")}
-      description={t("settings.import.import_singlefile_snapshots_description")}
+      description={t(
+        "settings.import.import_singlefile_snapshots_description",
+      )}
     >
       <div className="flex flex-col items-end gap-2">
         <div className="flex w-48 flex-col gap-1">
           <span className="text-xs text-muted-foreground">
-            {t("settings.import.import_singlefile_concurrency", { count: concurrency })}
+            {t("settings.import.import_singlefile_concurrency", {
+              count: concurrency,
+            })}
           </span>
           <Slider
             min={1}
