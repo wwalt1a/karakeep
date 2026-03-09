@@ -118,10 +118,9 @@ function SingleFileImportCard() {
 
       if (failed.length === 0) {
         toast({
-          description: t(
-            "settings.import.import_singlefile_success",
-            { count: files.length },
-          ),
+          description: t("settings.import.import_singlefile_success", {
+            count: files.length,
+          }),
           variant: "default",
         });
       } else {
@@ -144,9 +143,7 @@ function SingleFileImportCard() {
   return (
     <ImportCard
       text={t("settings.import.import_singlefile_snapshots")}
-      description={t(
-        "settings.import.import_singlefile_snapshots_description",
-      )}
+      description={t("settings.import.import_singlefile_snapshots_description")}
     >
       <div className="flex flex-col items-end gap-2">
         <div className="flex w-48 flex-col gap-1">
