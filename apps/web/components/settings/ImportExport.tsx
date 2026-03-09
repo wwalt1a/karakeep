@@ -63,7 +63,10 @@ async function extractSingleFileUrl(file: File): Promise<string> {
 function SingleFileImportCard() {
   const { t } = useTranslation();
   const [concurrency, setConcurrency] = useState(5);
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [progress, setProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -79,7 +82,8 @@ function SingleFileImportCard() {
 
       // Concurrency pool: run at most `concurrency` uploads simultaneously
       const queue = [...files];
-      const workers = Array.from({ length: Math.min(concurrency, files.length) }, async () => {
+      const workerCount = Math.min(concurrency, files.length);
+      const workers = Array.from({ length: workerCount }, async () => {
         while (queue.length > 0) {
           const file = queue.shift();
           if (!file) break;
@@ -115,12 +119,14 @@ function SingleFileImportCard() {
           variant: "default",
         });
       } else {
-        const fileList = failed.slice(0, 5).join(", ") + (failed.length > 5 ? ` +${failed.length - 5} more` : "");
+        const fileSummary =
+          failed.slice(0, 5).join(", ") +
+          (failed.length > 5 ? ` +${failed.length - 5} more` : "");
         toast({
           description: t("settings.import.import_singlefile_result", {
             success: files.length - failed.length,
             failed: failed.length,
-            files: fileList,
+            files: fileSummary,
           }),
           variant: "destructive",
         });
