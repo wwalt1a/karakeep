@@ -35,8 +35,16 @@ jobs:
       - name: Setup
         uses: ./tooling/github/setup
 
-      - name: Format
-        run: pnpm format
+      - name: Format Fix
+        run: pnpm format:fix
+
+      - name: Check for format changes
+        run: |
+          if [[ -n "$(git status --porcelain)" ]]; then
+            echo "Format issues found. Diff:"
+            git diff
+            exit 1
+          fi
 
   typecheck:
     runs-on: ubuntu-latest
