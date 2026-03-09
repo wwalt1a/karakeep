@@ -226,7 +226,15 @@
       "import_bookmarks_from_linkwarden_export": "导入 Linkwarden 导出的书签",
       "import_bookmarks_from_tab_session_manager_export": "从 Tab Session Manager 导入书签",
       "import_bookmarks_from_mymind_export": "从我的 mind 导出导入书签",
-      "import_bookmarks_from_instapaper_export": "从 Instapaper 导出内容导入书签"
+      "import_bookmarks_from_instapaper_export": "从 Instapaper 导出内容导入书签",
+      "import_singlefile_snapshots": "导入 SingleFile 快照",
+      "import_singlefile_snapshots_description": "批量导入 SingleFile 浏览器扩展保存的 HTML 页面快照",
+      "import_singlefile_concurrency": "并发数：{{count}}",
+      "import_singlefile_importing": "导入中…",
+      "import_singlefile_select_files": "选择文件",
+      "import_singlefile_processed": "已处理 {{done}} / {{total}}",
+      "import_singlefile_success": "已成功导入 {{count}} 个 SingleFile 快照，AI 标签将在后台自动生成。",
+      "import_singlefile_result": "导入完成：{{success}} 成功，{{failed}} 失败。失败文件：{{files}}"
     },
     "api_keys": {
       "api_keys": "API密钥",

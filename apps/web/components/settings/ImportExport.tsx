@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import FilePickerButton from "@/components/ui/file-picker-button";
@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
 import { toast } from "@/components/ui/sonner";
 import { useBookmarkImport } from "@/lib/hooks/useBookmarkImport";
 import { useTranslation } from "@/lib/i18n/client";
@@ -45,6 +46,146 @@ function ImportCard({
         {children}
       </CardContent>
     </Card>
+  );
+}
+
+async function extractSingleFileUrl(file: File): Promise<string> {
+  const slice = file.slice(0, 500);
+  const text = await slice.text();
+  const match = text.match(/^\s*url:\s*(\S+)/m);
+  if (match) {
+    return match[1];
+  }
+  // Fallback: use filename with trailing timestamp parentheses stripped
+  return file.name.replace(/\s*\([^)]*\)\s*\.html$/i, "").trim() || file.name;
+}
+
+function SingleFileImportCard() {
+  const { t } = useTranslation();
+  const [concurrency, setConcurrency] = useState(5);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFiles = useCallback(
+    async (fileList: FileList) => {
+      const files = Array.from(fileList);
+      if (files.length === 0) return;
+      setIsUploading(true);
+      setProgress({ done: 0, total: files.length });
+
+      const failed: string[] = [];
+      let done = 0;
+
+      // Concurrency pool: run at most `concurrency` uploads simultaneously
+      const queue = [...files];
+      const workers = Array.from({ length: Math.min(concurrency, files.length) }, async () => {
+        while (queue.length > 0) {
+          const file = queue.shift();
+          if (!file) break;
+          try {
+            const url = await extractSingleFileUrl(file);
+            const formData = new FormData();
+            formData.append("url", url);
+            formData.append("file", file);
+            const resp = await fetch("/api/v1/bookmarks/singlefile?ifexists=append", {
+              method: "POST",
+              body: formData,
+            });
+            if (!resp.ok) {
+              failed.push(file.name);
+            }
+          } catch {
+            failed.push(file.name);
+          }
+          done += 1;
+          setProgress({ done, total: files.length });
+        }
+      });
+
+      await Promise.all(workers);
+      setIsUploading(false);
+      setProgress(null);
+      // Reset input so the same files can be selected again
+      if (fileInputRef.current) fileInputRef.current.value = "";
+
+      if (failed.length === 0) {
+        toast({
+          description: t("settings.import.import_singlefile_success", { count: files.length }),
+          variant: "default",
+        });
+      } else {
+        const fileList = failed.slice(0, 5).join(", ") + (failed.length > 5 ? ` +${failed.length - 5} more` : "");
+        toast({
+          description: t("settings.import.import_singlefile_result", {
+            success: files.length - failed.length,
+            failed: failed.length,
+            files: fileList,
+          }),
+          variant: "destructive",
+        });
+      }
+    },
+    [concurrency, t],
+  );
+
+  return (
+    <ImportCard
+      text={t("settings.import.import_singlefile_snapshots")}
+      description={t("settings.import.import_singlefile_snapshots_description")}
+    >
+      <div className="flex flex-col items-end gap-2">
+        <div className="flex w-48 flex-col gap-1">
+          <span className="text-xs text-muted-foreground">
+            {t("settings.import.import_singlefile_concurrency", { count: concurrency })}
+          </span>
+          <Slider
+            min={1}
+            max={20}
+            step={1}
+            value={[concurrency]}
+            onValueChange={([v]) => setConcurrency(v)}
+            disabled={isUploading}
+          />
+        </div>
+        <Button
+          size="sm"
+          disabled={isUploading}
+          className="flex items-center gap-2"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          {isUploading && <Loader2 className="h-4 w-4 animate-spin" />}
+          <p>
+            {isUploading
+              ? t("settings.import.import_singlefile_importing")
+              : t("settings.import.import_singlefile_select_files")}
+          </p>
+        </Button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".html"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            if (e.target.files && e.target.files.length > 0) {
+              handleFiles(e.target.files);
+            }
+          }}
+        />
+      </div>
+      {progress && (
+        <div className="mt-2 flex w-full flex-col gap-1">
+          <span className="text-xs text-muted-foreground">
+            {t("settings.import.import_singlefile_processed", {
+              done: progress.done,
+              total: progress.total,
+            })}
+          </span>
+          <Progress value={(progress.done * 100) / progress.total} />
+        </div>
+      )}
+    </ImportCard>
   );
 }
 
@@ -309,6 +450,7 @@ export function ImportExportRow() {
             <p>Import</p>
           </FilePickerButton>
         </ImportCard>
+        <SingleFileImportCard />
         <ExportButton />
       </div>
       {importProgress && (
