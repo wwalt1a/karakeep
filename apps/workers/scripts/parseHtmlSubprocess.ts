@@ -146,6 +146,26 @@ function extractReadableContent(
   }
 }
 
+/**
+ * Strip base64-encoded data URIs from HTML to reduce memory usage during
+ * metadata extraction.  SingleFile snapshots inline all resources as data URIs,
+ * which can inflate the HTML to tens of megabytes.  JSDOM / metascraper only
+ * need the DOM structure and text content, not the actual image/font data.
+ *
+ * Preserves the attribute name so that selectors like img[src] still match.
+ */
+function stripDataUris(html: string): string {
+  return html.replace(
+    /(?:src|href|content|srcset)=["']data:[^"']{64,}["']/gi,
+    (match) => {
+      const eqIdx = match.indexOf("=");
+      const attr = match.slice(0, eqIdx);
+      const quote = match[eqIdx + 1];
+      return `${attr}=${quote}${quote}`;
+    },
+  );
+}
+
 async function main() {
   // Read all of stdin
   const chunks: Buffer[] = [];
@@ -155,7 +175,10 @@ async function main() {
   const input = parseSubprocessInputSchema.parse(
     JSON.parse(Buffer.concat(chunks).toString()),
   );
-  const { htmlContent, url, jobId } = input;
+  const { htmlContent: rawHtmlContent, url, jobId } = input;
+
+  // Strip base64 data URIs to prevent OOM when parsing large SingleFile snapshots
+  const htmlContent = stripDataUris(rawHtmlContent);
 
   logger.info(
     `[Crawler][${jobId}] Will attempt to extract metadata from page ...`,
