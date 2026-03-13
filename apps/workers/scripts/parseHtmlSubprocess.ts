@@ -169,23 +169,47 @@ function stripDataUris(html: string): string {
 /**
  * Extract the <head> section from HTML and build a minimal document for
  * metadata extraction.  Uses simple string matching instead of JSDOM to
- * avoid OOM on large SingleFile snapshots.  Also strips <style> blocks
- * which may contain massive inlined fonts and CSS rules in SingleFile output.
+ * avoid OOM on large SingleFile snapshots.  Also strips <style> and
+ * non-JSON-LD <script> blocks which may contain massive inlined fonts,
+ * CSS rules and JavaScript in SingleFile output.
  */
-function extractHeadHtml(html: string): string | null {
-  const headOpenMatch = html.match(/<head[\s>]/i);
-  if (!headOpenMatch || headOpenMatch.index === undefined) return null;
+function extractHeadHtml(
+  html: string,
+  jobId: string,
+): string | null {
+  const headOpenIdx = html.search(/<head[\s>]/i);
+  if (headOpenIdx === -1) {
+    logger.info(
+      `[Crawler][${jobId}] extractHeadHtml: no <head> tag found in ${html.length} char document`,
+    );
+    return null;
+  }
 
-  const headCloseMatch = html.match(/<\/head\s*>/i);
-  if (!headCloseMatch || headCloseMatch.index === undefined) return null;
+  const headCloseIdx = html.search(/<\/head\s*>/i);
+  if (headCloseIdx === -1) {
+    logger.info(
+      `[Crawler][${jobId}] extractHeadHtml: no </head> tag found (open at ${headOpenIdx})`,
+    );
+    return null;
+  }
 
-  let headSection = html.slice(
-    headOpenMatch.index,
-    headCloseMatch.index + headCloseMatch[0].length,
-  );
+  const headCloseEnd =
+    headCloseIdx + html.slice(headCloseIdx).match(/<\/head\s*>/i)![0].length;
+
+  let headSection = html.slice(headOpenIdx, headCloseEnd);
 
   // Strip <style> blocks — metadata extraction does not need CSS
   headSection = headSection.replace(/<style\b[\s\S]*?<\/style\s*>/gi, "");
+  // Strip <script> blocks except JSON-LD (structured data used by metascraper)
+  headSection = headSection.replace(
+    /<script\b(?![^>]*type\s*=\s*["']application\/ld\+json["'])[^>]*>[\s\S]*?<\/script\s*>/gi,
+    "",
+  );
+
+  logger.info(
+    `[Crawler][${jobId}] extractHeadHtml: extracted ${headSection.length} chars ` +
+      `(head at ${headOpenIdx}..${headCloseEnd} of ${html.length} char document)`,
+  );
 
   return `<!DOCTYPE html><html>${headSection}</html>`;
 }
@@ -201,20 +225,23 @@ async function main() {
   );
   const { htmlContent: rawHtmlContent, url, jobId } = input;
 
-  // Strip base64 data URIs to prevent OOM when parsing large SingleFile snapshots
-  const htmlContent = stripDataUris(rawHtmlContent);
-
-  // Extract <head> only for metadata to avoid JSDOM OOM on large documents
-  const headOnlyHtml = extractHeadHtml(htmlContent);
+  // Extract <head> from the raw HTML BEFORE stripDataUris to minimise peak
+  // memory — stripDataUris allocates a full copy of the string which we can
+  // skip entirely when head extraction succeeds.
+  const headOnlyHtml = extractHeadHtml(rawHtmlContent, jobId);
 
   logger.info(
-    `[Crawler][${jobId}] Will attempt to extract metadata from page${headOnlyHtml ? " (head-only)" : ""} ...`,
+    `[Crawler][${jobId}] Will attempt to extract metadata from page` +
+      ` (${headOnlyHtml ? "head-only" : "full document"}, ` +
+      `${rawHtmlContent.length} chars) ...`,
   );
 
-  // Run metascraper
+  // Metadata (title, og:image, description, …) lives entirely in <head>.
+  // Use the lightweight head-only document when available; fall back to the
+  // full document with data URIs stripped.
   const meta = await metascraperParser({
     url,
-    html: headOnlyHtml ?? htmlContent,
+    html: headOnlyHtml ?? stripDataUris(rawHtmlContent),
     validateUrl: false,
   });
 
@@ -239,6 +266,7 @@ async function main() {
     logger.info(
       `[Crawler][${jobId}] Will attempt to extract readable content ...`,
     );
+    const htmlContent = stripDataUris(rawHtmlContent);
     readableContent = extractReadableContent(
       meta.contentHtml ?? htmlContent,
       url,
