@@ -166,6 +166,30 @@ function stripDataUris(html: string): string {
   );
 }
 
+/**
+ * Extract the <head> section from HTML and build a minimal document for
+ * metadata extraction.  Uses simple string matching instead of JSDOM to
+ * avoid OOM on large SingleFile snapshots.  Also strips <style> blocks
+ * which may contain massive inlined fonts and CSS rules in SingleFile output.
+ */
+function extractHeadHtml(html: string): string | null {
+  const headOpenMatch = html.match(/<head[\s>]/i);
+  if (!headOpenMatch || headOpenMatch.index === undefined) return null;
+
+  const headCloseMatch = html.match(/<\/head\s*>/i);
+  if (!headCloseMatch || headCloseMatch.index === undefined) return null;
+
+  let headSection = html.slice(
+    headOpenMatch.index,
+    headCloseMatch.index + headCloseMatch[0].length,
+  );
+
+  // Strip <style> blocks — metadata extraction does not need CSS
+  headSection = headSection.replace(/<style\b[\s\S]*?<\/style\s*>/gi, "");
+
+  return `<!DOCTYPE html><html>${headSection}</html>`;
+}
+
 async function main() {
   // Read all of stdin
   const chunks: Buffer[] = [];
@@ -180,14 +204,17 @@ async function main() {
   // Strip base64 data URIs to prevent OOM when parsing large SingleFile snapshots
   const htmlContent = stripDataUris(rawHtmlContent);
 
+  // Extract <head> only for metadata to avoid JSDOM OOM on large documents
+  const headOnlyHtml = extractHeadHtml(htmlContent);
+
   logger.info(
-    `[Crawler][${jobId}] Will attempt to extract metadata from page ...`,
+    `[Crawler][${jobId}] Will attempt to extract metadata from page${headOnlyHtml ? " (head-only)" : ""} ...`,
   );
 
   // Run metascraper
   const meta = await metascraperParser({
     url,
-    html: htmlContent,
+    html: headOnlyHtml ?? htmlContent,
     validateUrl: false,
   });
 
