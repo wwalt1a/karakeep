@@ -170,11 +170,7 @@ function stripDataUris(html: string): string {
  * Case-insensitive indexOf that checks common casings without allocating
  * a lowercased copy of the (potentially huge) haystack.
  */
-function indexOfCI(
-  haystack: string,
-  needle: string,
-  fromIndex = 0,
-): number {
+function indexOfCI(haystack: string, needle: string, fromIndex = 0): number {
   // Fast paths for the most common casings
   const lower = needle.toLowerCase();
   const upper = needle.toUpperCase();
@@ -193,10 +189,7 @@ function indexOfCI(
  * <script> blocks which may contain massive inlined fonts, CSS rules and
  * JavaScript in SingleFile output.
  */
-function extractHeadHtml(
-  html: string,
-  jobId: string,
-): string | null {
+function extractHeadHtml(html: string, jobId: string): string | null {
   const headOpenIdx = indexOfCI(html, "<head");
   if (headOpenIdx === -1) {
     logger.info(
