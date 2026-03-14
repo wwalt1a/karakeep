@@ -137,9 +137,18 @@ const app = new Hono()
       if ("error" in up) {
         return c.json({ error: up.error }, up.status);
       }
+      // Extract a human-readable title from the SingleFile filename.
+      // SingleFile names files like "Page Title (YYYY-MM-DD HH-MM-SS).html";
+      // strip the trailing timestamp parentheses and extension.
+      const title =
+        form.file.name
+          .replace(/\s*\([^)]*\)\s*\.html$/i, "")
+          .replace(/\.html$/i, "")
+          .trim() || undefined;
       const bookmark = await c.var.api.bookmarks.createBookmark({
         type: BookmarkTypes.LINK,
         url: form.url,
+        title,
         precrawledArchiveId: up.assetId,
         source: "singlefile",
       });

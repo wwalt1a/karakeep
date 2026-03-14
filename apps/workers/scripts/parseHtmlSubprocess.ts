@@ -227,7 +227,8 @@ function extractHeadHtml(html: string, jobId: string): string | null {
 
   logger.info(
     `[Crawler][${jobId}] extractHeadHtml: extracted ${headSection.length} chars ` +
-      `(head at ${headOpenIdx}..${headCloseEnd + 1} of ${html.length} char document)`,
+      `(head at ${headOpenIdx}..${headCloseEnd + 1} of ${html.length} char document). ` +
+      `Preview: ${JSON.stringify(headSection.slice(0, 300))}`,
   );
 
   return `<!DOCTYPE html><html>${headSection}</html>`;
@@ -264,7 +265,10 @@ async function main() {
     validateUrl: false,
   });
 
-  logger.info(`[Crawler][${jobId}] Done extracting metadata from the page.`);
+  logger.info(
+    `[Crawler][${jobId}] Done extracting metadata from the page. ` +
+      `title=${JSON.stringify(meta.title)}, image=${JSON.stringify(meta.image?.slice(0, 80))}`,
+  );
 
   // Conditionally run readability (skip if metascraper already provided readable content, e.g. Reddit plugin)
   let readableContent: { content: string } | null = null;
