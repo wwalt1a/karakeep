@@ -9,6 +9,14 @@ import {
 
 import { toWebReadableStream } from "./upload";
 
+// CSS injected into HTML assets to hide <noscript> fallback messages.
+// The CSP sandbox directive disables scripting, which causes browsers to
+// render <noscript> content.  SingleFile snapshots already contain the
+// fully-rendered DOM, so <noscript> elements (e.g. x.com's "JavaScript
+// is disabled" banner) are redundant and should be hidden.
+const NOSCRIPT_HIDE_STYLE = `<style>noscript{display:none!important}</style>`;
+const NOSCRIPT_HIDE_BYTES = new TextEncoder().encode(NOSCRIPT_HIDE_STYLE);
+
 export async function serveAsset(c: Context, assetId: string, userId: string) {
   const [metadata, size] = await Promise.all([
     readAssetMetadata({
@@ -21,6 +29,8 @@ export async function serveAsset(c: Context, assetId: string, userId: string) {
       assetId,
     }),
   ]);
+
+  const isHtml = metadata.contentType.startsWith("text/html");
 
   // Default Headers
   c.header("Content-type", metadata.contentType);
@@ -67,8 +77,14 @@ export async function serveAsset(c: Context, assetId: string, userId: string) {
       assetId,
     });
     c.status(200);
-    c.header("Content-Length", size.toString());
+    c.header(
+      "Content-Length",
+      (size + (isHtml ? NOSCRIPT_HIDE_BYTES.length : 0)).toString(),
+    );
     return stream(c, async (stream) => {
+      if (isHtml) {
+        await stream.write(NOSCRIPT_HIDE_BYTES);
+      }
       await stream.pipe(toWebReadableStream(fStream));
     });
   }
