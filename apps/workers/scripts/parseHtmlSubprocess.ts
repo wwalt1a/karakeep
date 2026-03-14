@@ -199,7 +199,13 @@ function extractHeadHtml(html: string, jobId: string): string | null {
       const candidate = indexOfCI(html, "<head", searchFrom);
       if (candidate === -1) break;
       const charAfter = html[candidate + 5];
-      if (charAfter === ">" || charAfter === " " || charAfter === "\t" || charAfter === "\n" || charAfter === "\r") {
+      if (
+        charAfter === ">" ||
+        charAfter === " " ||
+        charAfter === "\t" ||
+        charAfter === "\n" ||
+        charAfter === "\r"
+      ) {
         headOpenIdx = candidate;
         break;
       }
@@ -227,7 +233,13 @@ function extractHeadHtml(html: string, jobId: string): string | null {
     const candidate = indexOfCI(html, "</head", searchFrom);
     if (candidate === -1) break;
     const charAfter = html[candidate + 6];
-    if (charAfter === ">" || charAfter === " " || charAfter === "\t" || charAfter === "\n" || charAfter === "\r") {
+    if (
+      charAfter === ">" ||
+      charAfter === " " ||
+      charAfter === "\t" ||
+      charAfter === "\n" ||
+      charAfter === "\r"
+    ) {
       headCloseIdx = candidate;
       break;
     }
