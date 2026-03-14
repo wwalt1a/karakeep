@@ -282,15 +282,27 @@ async function main() {
   }
 
   if (!readableContent) {
-    logger.info(
-      `[Crawler][${jobId}] Will attempt to extract readable content ...`,
-    );
-    const htmlContent = stripDataUris(rawHtmlContent);
-    readableContent = extractReadableContent(
-      meta.contentHtml ?? htmlContent,
-      url,
-    );
-    logger.info(`[Crawler][${jobId}] Done extracting readable content.`);
+    // Skip Readability for very large documents (> 50 MB of text) to avoid
+    // OOM.  stripDataUris + JSDOM + Readability on 100 MB+ SingleFile
+    // snapshots exceeds the subprocess memory budget.  Metadata has already
+    // been extracted from <head> above.
+    const MAX_READABLE_SIZE = 50_000_000;
+    if (rawHtmlContent.length > MAX_READABLE_SIZE) {
+      logger.info(
+        `[Crawler][${jobId}] Skipping readable content extraction — ` +
+          `document too large (${rawHtmlContent.length} chars, limit ${MAX_READABLE_SIZE})`,
+      );
+    } else {
+      logger.info(
+        `[Crawler][${jobId}] Will attempt to extract readable content ...`,
+      );
+      const htmlContent = stripDataUris(rawHtmlContent);
+      readableContent = extractReadableContent(
+        meta.contentHtml ?? htmlContent,
+        url,
+      );
+      logger.info(`[Crawler][${jobId}] Done extracting readable content.`);
+    }
   }
 
   const output = parseSubprocessOutputSchema.parse({
