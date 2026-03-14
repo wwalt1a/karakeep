@@ -1,3 +1,5 @@
+import { Readable } from "stream";
+
 import { Context } from "hono";
 import { stream } from "hono/streaming";
 
@@ -72,10 +74,6 @@ export async function serveAsset(c: Context, assetId: string, userId: string) {
       await stream.pipe(toWebReadableStream(fStream));
     });
   } else {
-    const fStream = await createAssetReadStream({
-      userId,
-      assetId,
-    });
     c.status(200);
     c.header(
       "Content-Length",
@@ -83,9 +81,31 @@ export async function serveAsset(c: Context, assetId: string, userId: string) {
     );
     return stream(c, async (stream) => {
       if (isHtml) {
-        await stream.write(NOSCRIPT_HIDE_BYTES);
+        // Concatenate the injected CSS prefix and the file stream into one
+        // Node Readable, then pipe it as a single Web ReadableStream.
+        // Mixing stream.write() followed by stream.pipe() releases and
+        // re-acquires the underlying writer lock, which corrupts the
+        // TransformStream state in Node.js and causes a TypeError.
+        const prefix = Readable.from([NOSCRIPT_HIDE_BYTES]);
+        const fileStream = await createAssetReadStream({ userId, assetId });
+        const combined = Readable.from(
+          (async function* () {
+            for await (const chunk of prefix) {
+              yield chunk as Buffer;
+            }
+            for await (const chunk of fileStream) {
+              yield chunk as Buffer;
+            }
+          })(),
+        );
+        await stream.pipe(toWebReadableStream(combined));
+      } else {
+        const fStream = await createAssetReadStream({
+          userId,
+          assetId,
+        });
+        await stream.pipe(toWebReadableStream(fStream));
       }
-      await stream.pipe(toWebReadableStream(fStream));
     });
   }
 }

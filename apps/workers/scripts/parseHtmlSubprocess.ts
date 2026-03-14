@@ -190,7 +190,22 @@ function indexOfCI(haystack: string, needle: string, fromIndex = 0): number {
  * JavaScript in SingleFile output.
  */
 function extractHeadHtml(html: string, jobId: string): string | null {
-  const headOpenIdx = indexOfCI(html, "<head");
+  // Search for <head> but not <header> — verify the char after "<head"
+  // is '>' or whitespace, not a letter.
+  let headOpenIdx = -1;
+  {
+    let searchFrom = 0;
+    while (searchFrom < html.length) {
+      const candidate = indexOfCI(html, "<head", searchFrom);
+      if (candidate === -1) break;
+      const charAfter = html[candidate + 5];
+      if (charAfter === ">" || charAfter === " " || charAfter === "\t" || charAfter === "\n" || charAfter === "\r") {
+        headOpenIdx = candidate;
+        break;
+      }
+      searchFrom = candidate + 5;
+    }
+  }
   if (headOpenIdx === -1) {
     logger.info(
       `[Crawler][${jobId}] extractHeadHtml: no <head> tag found in ` +
@@ -204,7 +219,20 @@ function extractHeadHtml(html: string, jobId: string): string | null {
   const headOpenEnd = html.indexOf(">", headOpenIdx);
   if (headOpenEnd === -1) return null;
 
-  const headCloseIdx = indexOfCI(html, "</head", headOpenIdx);
+  // Search for </head> but not </header> — verify the char after "</head"
+  // is '>' or whitespace, not a letter.
+  let headCloseIdx = -1;
+  let searchFrom = headOpenIdx;
+  while (searchFrom < html.length) {
+    const candidate = indexOfCI(html, "</head", searchFrom);
+    if (candidate === -1) break;
+    const charAfter = html[candidate + 6];
+    if (charAfter === ">" || charAfter === " " || charAfter === "\t" || charAfter === "\n" || charAfter === "\r") {
+      headCloseIdx = candidate;
+      break;
+    }
+    searchFrom = candidate + 6;
+  }
   if (headCloseIdx === -1) {
     logger.info(
       `[Crawler][${jobId}] extractHeadHtml: no </head> tag found (open at ${headOpenIdx})`,
