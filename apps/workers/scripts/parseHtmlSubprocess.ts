@@ -167,25 +167,51 @@ function stripDataUris(html: string): string {
 }
 
 /**
+ * Case-insensitive indexOf that checks common casings without allocating
+ * a lowercased copy of the (potentially huge) haystack.
+ */
+function indexOfCI(
+  haystack: string,
+  needle: string,
+  fromIndex = 0,
+): number {
+  // Fast paths for the most common casings
+  const lower = needle.toLowerCase();
+  const upper = needle.toUpperCase();
+  const capitalised = lower.charAt(0).toUpperCase() + lower.slice(1);
+  for (const variant of [lower, upper, capitalised]) {
+    const idx = haystack.indexOf(variant, fromIndex);
+    if (idx !== -1) return idx;
+  }
+  return -1;
+}
+
+/**
  * Extract the <head> section from HTML and build a minimal document for
- * metadata extraction.  Uses simple string matching instead of JSDOM to
- * avoid OOM on large SingleFile snapshots.  Also strips <style> and
- * non-JSON-LD <script> blocks which may contain massive inlined fonts,
- * CSS rules and JavaScript in SingleFile output.
+ * metadata extraction.  Uses indexOf instead of RegExp to stay reliable on
+ * very large strings (100 MB+).  Also strips <style> and non-JSON-LD
+ * <script> blocks which may contain massive inlined fonts, CSS rules and
+ * JavaScript in SingleFile output.
  */
 function extractHeadHtml(
   html: string,
   jobId: string,
 ): string | null {
-  const headOpenIdx = html.search(/<head[\s>]/i);
+  const headOpenIdx = indexOfCI(html, "<head");
   if (headOpenIdx === -1) {
     logger.info(
-      `[Crawler][${jobId}] extractHeadHtml: no <head> tag found in ${html.length} char document`,
+      `[Crawler][${jobId}] extractHeadHtml: no <head> tag found in ` +
+        `${html.length} char document. First 500 chars: ` +
+        JSON.stringify(html.slice(0, 500)),
     );
     return null;
   }
 
-  const headCloseIdx = html.search(/<\/head\s*>/i);
+  // Find the closing > of the <head ...> open tag
+  const headOpenEnd = html.indexOf(">", headOpenIdx);
+  if (headOpenEnd === -1) return null;
+
+  const headCloseIdx = indexOfCI(html, "</head", headOpenIdx);
   if (headCloseIdx === -1) {
     logger.info(
       `[Crawler][${jobId}] extractHeadHtml: no </head> tag found (open at ${headOpenIdx})`,
@@ -193,10 +219,10 @@ function extractHeadHtml(
     return null;
   }
 
-  const headCloseEnd =
-    headCloseIdx + html.slice(headCloseIdx).match(/<\/head\s*>/i)![0].length;
+  const headCloseEnd = html.indexOf(">", headCloseIdx);
+  if (headCloseEnd === -1) return null;
 
-  let headSection = html.slice(headOpenIdx, headCloseEnd);
+  let headSection = html.slice(headOpenIdx, headCloseEnd + 1);
 
   // Strip <style> blocks — metadata extraction does not need CSS
   headSection = headSection.replace(/<style\b[\s\S]*?<\/style\s*>/gi, "");
@@ -208,7 +234,7 @@ function extractHeadHtml(
 
   logger.info(
     `[Crawler][${jobId}] extractHeadHtml: extracted ${headSection.length} chars ` +
-      `(head at ${headOpenIdx}..${headCloseEnd} of ${html.length} char document)`,
+      `(head at ${headOpenIdx}..${headCloseEnd + 1} of ${html.length} char document)`,
   );
 
   return `<!DOCTYPE html><html>${headSection}</html>`;
